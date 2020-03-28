@@ -1,0 +1,29 @@
+{
+  "name": "linkedin-learning-courses-downloader",
+  "version": "0.1.0",
+  "description": "Download LinkedIn Learning courses using your LinkedIn Premium account",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lawrensylvan/linkedin-learning-courses-downloader.git"
+  },
+  "keywords": [
+    "linkedin-learning",
+    "lynda",
+    "linkedin",
+    "e-learning"
+  ],
+  "author": "Laurent Sylvain Vleminckx",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/lawrensylvan/linkedin-learning-courses-downloader/issues"
+  },
+  "homepage": "https://github.com/lawrensylvan/linkedin-learning-courses-downloader#readme",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "puppeteer": "^2.1.1"
+  }
+}

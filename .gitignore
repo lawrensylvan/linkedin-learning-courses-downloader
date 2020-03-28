@@ -1,3 +1,11 @@
+# params.json (includes not encrypted credentials)
+params.json
+
+# folder with downloaded courses (if named './courses' in params.json)
+courses
+
+### Standard Node gitignores :
+
 # Logs
 logs
 *.log
