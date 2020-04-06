@@ -68,8 +68,10 @@ const LinkedInLearningDownloader = () => {
                             .querySelector('.classroom-toc-chapter__toggle-title')
                             .innerHTML
                             .trim()
-                            .replace(/(Introduction)/, '0. $1')
-                            .replace(/(Conclusion)/, chapterId + '. $1'),
+                            .replace(/(Introduction)/, '0. $1')             // 'Introduction' and 'Conclusions' lessons have no number
+                            .replace(/(Conclusion)/, chapterId + '. $1')    // so we add one (resp. 0 and last number + 1)
+                            .replace(/[/\\:|>] ?/g, ' - ')                  // make name file-system safe
+                            .replace(/[/\\?%"*<]/g, ''),
         
                     lessons: [...chapter.querySelectorAll('.classroom-toc-item-layout__link')]
                         .map(lesson => ({
@@ -78,6 +80,8 @@ const LinkedInLearningDownloader = () => {
                                 .childNodes[1]
                                 .textContent
                                 .trim()
+                                .replace(/[/\\:|>] ?/g, ' - ')              // make name file-system safe
+                                .replace(/[/\\?%"*<]/g, '')
                         }))
                         .filter(lesson => !lesson.url.includes('learningApiAssessment'))
                         
@@ -90,7 +94,6 @@ const LinkedInLearningDownloader = () => {
             console.error(`Unexpected error while fetching chapter list of course ${course} : ${err}`)
             throw err
         }
-        
     }
 
     async function downloadLesson(lesson, output) {
@@ -181,7 +184,7 @@ const LinkedInLearningDownloader = () => {
         }
     
         catch(err) {
-            console.error(`Error downloading videos : ${err}`)
+            console.error(`Unexpected error : ${err}`)
             await browser.close() 
         }
     
@@ -203,12 +206,13 @@ module.exports = LinkedInLearningDownloader
 // TODO Improvements
 // - should consider not existing if file size < 500Kb
 // - escape html in lesson title : for instance with "3. Using Edit &gt; Insert"
-// - maybe ensure to have filesystem safe names ? (: is already changed in / on MacOS but still)
+// - name course folder with full course name instead of short url name
 
 // TODO Features
+// - allow full length course url as well as short course name in params
+// - download all courses of a personal Collection
+// - download all courses of the personal section 'Saved courses'
+// - download a whole (or a list of) training path
+// - create a CLI (and download from a list of course names in csv)
 // - download transcripts
 // - download exercise files
-// - download from a Collection
-// - create a CLI (and download from a list of course names in csv)
-// - allow full length course url as well as short course name
-// - name course folder with full course name instead of short url name
