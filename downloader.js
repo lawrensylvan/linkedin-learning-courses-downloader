@@ -56,15 +56,23 @@ const LinkedInLearningDownloader = () => {
             if(contentSidebar === null) {
                 await contentSidebar.click()
             }
+            // Get course full name
+            const courseTitle = await page.evaluate(() => document
+                .querySelector('.classroom-nav__details h1')
+                .textContent
+                .trim()
+                .replace(/[/\\:|>] ?/g, ' - ') // make name file-system safe
+                .replace(/[/\\?%"*<]/g, '')
+            )
             // Click on each collapsed chapter to expand them
             const collapsedChapters = await page.$$('.classroom-toc-chapter--collapsed')
             for(const collapsedChapter of collapsedChapters) {
                 await collapsedChapter.click()
             }
             // Store the chapter/lesson tree structure
-            const structure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
+            const chapters = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
                 .map((chapter, chapterId) => ({
-                    name: chapter
+                    title: chapter
                             .querySelector('.classroom-toc-chapter__toggle-title')
                             .innerHTML
                             .trim()
@@ -76,19 +84,19 @@ const LinkedInLearningDownloader = () => {
                     lessons: [...chapter.querySelectorAll('.classroom-toc-item-layout__link')]
                         .map(lesson => ({
                             url: lesson.href,
-                            name: lesson.querySelector('.classroom-toc-item-layout__title')
+                            title: lesson.querySelector('.classroom-toc-item-layout__title')
                                 .childNodes[1]
                                 .textContent
                                 .trim()
                                 .replace(/[/\\:|>] ?/g, ' - ')              // make name file-system safe
                                 .replace(/[/\\?%"*<]/g, '')
                         }))
-                        .filter(lesson => !lesson.url.includes('learningApiAssessment'))
+                        .filter(lesson => !lesson.url.includes('learningApiAssessment'))    // ignore interactive quizz
                         
                 }))
             )
 
-            return structure
+            return {title:courseTitle, chapters}
         }
         catch(err) {
             console.error(`Unexpected error while fetching chapter list of course ${course} : ${err}`)
@@ -112,12 +120,12 @@ const LinkedInLearningDownloader = () => {
                     return (src ? src.src : null)
                 })
                 if(uri == null && tryCount < 3) {
-                    console.warn(`Trouble downloading video '${lesson.name}' ! Retrying...`)
+                    console.warn(`Trouble downloading video '${lesson.title}' ! Retrying...`)
                     await timeout(4000)
                 }
             }
             if(uri == null) {
-                console.warn(`Skipped unreachable video '${lesson.name}' !`)
+                console.warn(`Skipped unreachable video '${lesson.title}' !`)
                 retryCount = 0
             }
             // Download video
@@ -131,7 +139,7 @@ const LinkedInLearningDownloader = () => {
             })
         }
         catch(err) {
-            console.error(`Unexpected error while downloading lesson ${lesson} : ${err}`)
+            console.error(`Unexpected error while downloading lesson ${lesson.title} : ${err}`)
             throw err
         }
     }
@@ -151,20 +159,20 @@ const LinkedInLearningDownloader = () => {
             for(const course of courses) {
                 console.info(`Let's download course ${course}`)
                 const structure = await getCourseStructure(course)
-    
-                for(const chapterId in structure) {
-                    const chapter = structure[chapterId]
+                const courseTitle = structure.title
+                for(const chapterId in structure.chapters) {
+                    const chapter = structure.chapters[chapterId]
                     
                     // Create chapter folder
-                    const chapterPath = `${outputFolder}/${course}/${chapter.name}`
+                    const chapterPath = `${outputFolder}/${courseTitle}/${chapter.title}`
                     !fs.existsSync(chapterPath) && fs.mkdirSync(chapterPath, {recursive:true})
                     
                     for(let lessonId = 0; lessonId < chapter.lessons.length; ++lessonId) {
                         const lesson = chapter.lessons[lessonId]
                         // Ignore lesson if already exists on disk
-                        const lessonFullPath = `${chapterPath}/${lessonId+1}. ${lesson.name}.mp4`
+                        const lessonFullPath = `${chapterPath}/${lessonId+1}. ${lesson.title}.mp4`
                         if(fs.existsSync(lessonFullPath)) {
-                            console.info(`Skipped existing '${chapterId}/${lessonId+1}. ${lesson.name}'`)
+                            console.info(`Skipped existing '${chapterId}/${lessonId+1}. ${lesson.title}'`)
                             continue
                         }
                         await downloadLesson(lesson, lessonFullPath)
@@ -206,7 +214,6 @@ module.exports = LinkedInLearningDownloader
 // TODO Improvements
 // - should consider not existing if file size < 500Kb
 // - escape html in lesson title : for instance with "3. Using Edit &gt; Insert"
-// - name course folder with full course name instead of short url name
 
 // TODO Features
 // - allow full length course url as well as short course name in params
