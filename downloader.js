@@ -1,6 +1,7 @@
 const fs = require('fs')
 const puppeteer = require('puppeteer')
 const axios = require('axios')
+const decodeHTML = require('unescape')
 
 const LinkedInLearningDownloader = () => {
 
@@ -8,7 +9,8 @@ const LinkedInLearningDownloader = () => {
     let page = null
 
     const timeout = ms => new Promise(res => setTimeout(res, ms))
-    
+    const makeFileSystemSafe = str => str.replace(/ ?[/\\:|>] ?/g, ' - ').replace(/[/\\?%"*<]/g, '')
+
     async function openBrowserPage() {
         try {
             const width = 1600
@@ -57,44 +59,40 @@ const LinkedInLearningDownloader = () => {
                 await contentSidebar.click()
             }
             // Get course full name
-            const courseTitle = await page.evaluate(() => document
-                .querySelector('.classroom-nav__details h1')
-                .textContent
-                .trim()
-                .replace(/[/\\:|>] ?/g, ' - ') // make name file-system safe
-                .replace(/[/\\?%"*<]/g, '')
-            )
+            const courseTitle = makeFileSystemSafe(decodeHTML(await page.$eval('.classroom-nav__details h1', el => el.textContent.trim())))
+            
             // Click on each collapsed chapter to expand them
             const collapsedChapters = await page.$$('.classroom-toc-chapter--collapsed')
             for(const collapsedChapter of collapsedChapters) {
                 await collapsedChapter.click()
             }
             // Store the chapter/lesson tree structure
-            const chapters = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
+
+            const HTMLStructure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
                 .map((chapter, chapterId) => ({
-                    title: chapter
-                            .querySelector('.classroom-toc-chapter__toggle-title')
-                            .innerHTML
-                            .trim()
-                            .replace(/(Introduction)/, '0. $1')             // 'Introduction' and 'Conclusions' lessons have no number
-                            .replace(/(Conclusion)/, chapterId + '. $1')    // so we add one (resp. 0 and last number + 1)
-                            .replace(/[/\\:|>] ?/g, ' - ')                  // make name file-system safe
-                            .replace(/[/\\?%"*<]/g, ''),
-        
+                    title: chapter.querySelector('.classroom-toc-chapter__toggle-title').innerHTML,
                     lessons: [...chapter.querySelectorAll('.classroom-toc-item-layout__link')]
                         .map(lesson => ({
                             url: lesson.href,
-                            title: lesson.querySelector('.classroom-toc-item-layout__title')
-                                .childNodes[1]
-                                .textContent
-                                .trim()
-                                .replace(/[/\\:|>] ?/g, ' - ')              // make name file-system safe
-                                .replace(/[/\\?%"*<]/g, '')
+                            title: lesson.querySelector('.classroom-toc-item-layout__title').childNodes[1].textContent
                         }))
-                        .filter(lesson => !lesson.url.includes('learningApiAssessment'))    // ignore interactive quizz
-                        
                 }))
             )
+
+            const chapters = HTMLStructure
+                .map((chapter, chapterId) => ({
+                    title: makeFileSystemSafe(decodeHTML(chapter.title.trim()
+                            .replace(/(Introduction)/, '0. $1')             // 'Introduction' and 'Conclusions' lessons have no number
+                            .replace(/(Conclusion)/, chapterId + '. $1')    // so we add one (resp. 0 and last number + 1)
+                    )),
+        
+                    lessons: chapter.lessons
+                        .map(lesson => ({
+                            ...lesson,
+                            title: makeFileSystemSafe(decodeHTML(lesson.title.trim()))
+                        }))
+                        .filter(lesson => !lesson.url.includes('learningApiAssessment'))    // ignore interactive quizz
+                }))
 
             return {title:courseTitle, chapters}
         }
@@ -213,7 +211,6 @@ module.exports = LinkedInLearningDownloader
 
 // TODO Improvements
 // - should consider not existing if file size < 500Kb
-// - escape html in lesson title : for instance with "3. Using Edit &gt; Insert"
 
 // TODO Features
 // - allow full length course url as well as short course name in params
