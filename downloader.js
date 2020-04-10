@@ -39,7 +39,7 @@ const LinkedInLearningDownloader = () => {
             ])
             await page.type('#password', password)
             await Promise.all([
-                page.click('[data-control-urn="login-submit"]'),
+                page.click('.login__form_action_container button'),
                 page.waitForNavigation()
             ]);
         } catch(err) {
