@@ -169,7 +169,7 @@ const LinkedInLearningDownloader = () => {
                         const lesson = chapter.lessons[lessonId]
                         // Ignore lesson if already exists on disk
                         const lessonFullPath = `${chapterPath}/${lessonId+1}. ${lesson.title}.mp4`
-                        if(fs.existsSync(lessonFullPath)) {
+                        if(fs.existsSync(lessonFullPath) && fs.statSync(lessonFullPath).size > 500000) {
                             console.info(`Skipped existing '${chapterId}/${lessonId+1}. ${lesson.title}'`)
                             continue
                         }
@@ -207,10 +207,6 @@ module.exports = LinkedInLearningDownloader
 // TODO Bugs
 // - sometimes video download is stuck forever, promise never resolve
 // - sometimes we have "TypeError: Cannot read property 'replace' of null"
-// - close browser even when an error is thrown
-
-// TODO Improvements
-// - should consider not existing if file size < 500Kb
 
 // TODO Features
 // - allow full length course url as well as short course name in params
