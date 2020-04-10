@@ -4,6 +4,7 @@
   "description": "Download LinkedIn Learning courses using your LinkedIn Premium account",
   "main": "index.js",
   "scripts": {
+    "start": "node ./test.js",
     "test": "node ./test.js"
   },
   "repository": {

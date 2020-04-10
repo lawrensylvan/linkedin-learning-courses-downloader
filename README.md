@@ -34,7 +34,7 @@ npm install
 ### Run to download courses
 
 ```sh
-$ node ./index.js
+$ npm start
 ```
 
 If one of the courses or one of the courses' lessons already exists in the output path, it is not re-downloaded.
