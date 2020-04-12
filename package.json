@@ -1,6 +1,6 @@
 {
   "name": "linkedin-learning-courses-downloader",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Download LinkedIn Learning courses using your LinkedIn Premium account",
   "main": "index.js",
   "scripts": {
@@ -25,6 +25,7 @@
   "homepage": "https://github.com/lawrensylvan/linkedin-learning-courses-downloader#readme",
   "dependencies": {
     "axios": "^0.19.2",
+    "lodash": "^4.17.15",
     "puppeteer": "^2.1.1",
     "unescape": "^1.0.1"
   }

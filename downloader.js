@@ -2,6 +2,7 @@ const fs = require('fs')
 const puppeteer = require('puppeteer')
 const axios = require('axios')
 const decodeHTML = require('unescape')
+const _ = require('lodash')
 
 const LinkedInLearningDownloader = () => {
 
@@ -20,8 +21,8 @@ const LinkedInLearningDownloader = () => {
                 args: [`--window-size=${width},${height}`]
             })
         
-            page = await browser.newPage();
-            await page.setViewport({width, height});
+            page = await browser.newPage()
+            await page.setViewport({width, height})
         } catch(err) {
             console.error(`Unexpected error while launching browser : ${err}`)
             throw err
@@ -41,10 +42,81 @@ const LinkedInLearningDownloader = () => {
             await Promise.all([
                 page.click('.login__form_action_container button'),
                 page.waitForNavigation()
-            ]);
+            ])
         } catch(err) {
             console.error(`Unexpected error while logging in : ${err}`)
             throw err
+        }
+    }
+
+    function getItemsToDownloadFromList(itemsURLs) {
+        // trim 'https://linkedin.com/learning/' as well as GET arguments
+        const items = itemsURLs.map(url => url.replace(/.*\/learning\/([^?]*).*/, '$1'))
+        return {
+            allSaved :          items.some(e => e.match(/me\/saved.*/))         ,
+            allCompleted :      items.some(e => e.match(/me\/completed.*/))     ,
+            allInProgress :     items.some(e => e.match(/me\/in-progress.*/))   ,
+            collections :       items.filter(e => e.match(/collections\/.*/))   ,
+            paths :             items.filter(e => e.match(/paths\/.*/))         ,
+            individualCourses : items.filter(e => !e.match(/^(me\/|paths\/|collections\/)/)).map(e => e.replace(/([^\/]*).*/, '$1'))
+        }
+    }
+
+    async function getAllSavedCourses() {
+        await page.goto(`https://www.linkedin.com/learning/me/saved`)
+        await timeout(2000)
+        return await page.$$eval('a.card-entity-link[data-control-name="card_title"]',
+            a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
+    }
+
+    async function getCoursesFromCollection(collection) {
+        await page.goto(`https://www.linkedin.com/learning/${collection}`)
+        await timeout(2000)
+        return await page.$$eval('a.entity-link__link[data-control-name="collection_card"]',
+            a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
+    }
+
+    async function getAllInProgressCourses() {
+        await page.goto(`https://www.linkedin.com/learning/me/in-progress`)
+        await timeout(2000)
+        // click on each collapsed learning paths to expand them
+        const collapsedPaths = await page.$$('.lls-card-child-content__button>span')
+        for(const collapsedPath of collapsedPaths) {
+            await collapsedPath.click()
+        }
+        // get all course names (excluding learning path roots)
+        return await page.$$eval('a.card-entity-link[data-control-name="card_title"]',
+            a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')).filter(e => e!='paths'))
+    }
+
+    async function getAllCompletedCourses() {
+        await page.goto(`https://www.linkedin.com/learning/me/completed`)
+        await timeout(2000)
+        // click on each collapsed learning paths to expand them
+        const collapsedPaths = await page.$$('.lls-card-child-content__button>span')
+        for(const collapsedPath of collapsedPaths) {
+            await collapsedPath.click()
+        }
+        // get all course names (excluding learning path roots)
+        return await page.$$eval('a.card-entity-link[data-control-name="card_title"]',
+            a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')).filter(e => e!='paths'))
+    }
+
+    async function getPathStructure(path) {
+        await page.goto(`https://www.linkedin.com/learning/${path}`)
+        await timeout(2000)
+
+        const title = await page.$eval('.path-layout__header-main>h1', h1 => h1.textContent.trim())
+
+        const courseURLs = await page.$$eval('a.entity-link__link[data-control-name="path_card_title"]',
+            l => l.map(a => a.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
+
+        const courseTitles = await page.$$eval('.lls-card-headline',
+            l => l.map(span => span.textContent.trim()))
+
+        return {
+            title,
+            courses : courseURLs.map((courseURL, i) => ({url: courseURL, title: courseTitles[i]}))
         }
     }
 
@@ -114,20 +186,20 @@ const LinkedInLearningDownloader = () => {
                 ])
                 // Get video uri
                 uri = await page.evaluate(() => {
-                    let src = document.querySelector('.vjs-tech');
+                    let src = document.querySelector('.vjs-tech')
                     return (src ? src.src : null)
                 })
                 if(uri == null && tryCount < 3) {
-                    console.warn(`Trouble downloading video '${lesson.title}' ! Retrying...`)
+                    console.warn(`Trouble fetching video uri for '${lesson.title}' : retrying`)
                     await timeout(4000)
                 }
             }
             if(uri == null) {
-                console.warn(`Skipped unreachable video '${lesson.title}' !`)
+                console.warn(`<!> Could not fetch video uri for ${lesson.title} : skipped !`)
                 retryCount = 0
+                return
             }
             // Download video
-            console.info(`Downloading to '${output}'...`)
             const writer = fs.createWriteStream(output)
             const response = await axios({url: uri, method: 'GET', responseType: 'stream', timeout: 5*1000})
             response.data.pipe(writer)
@@ -135,28 +207,60 @@ const LinkedInLearningDownloader = () => {
                 writer.on('finish', resolve)
                 writer.on('error', reject)
             })
+            console.info(` '${output.replace(/.*\/[^\/]*\/([^\/]*\/[^\/]*)/, '$1')}' downloaded.`)
         }
         catch(err) {
-            console.error(`Unexpected error while downloading lesson ${lesson.title} : ${err}`)
+            console.error(`Unexpected error while downloading lesson '${lesson.title}' : ${err}`)
             throw err
         }
     }
 
     // Public exports
 
-    async function downloadCourses({user, password, courses, includeExerciseFiles, includeTranscripts, outputFolder}) {
+    async function downloadCourses({user, password, items, includeExerciseFiles, includeTranscripts, outputFolder}) {
         try {
+            // Log in
             console.info(`Launching browser...`)
             await openBrowserPage()
-            
             console.info(`Logging in...`)
             await login(user, password)
-            console.info(`Logged in successfully !`)
             
+            // Get structure of items to download
+            const {
+                individualCourses,                      // individual courses
+                paths, collections,                     // specific public learning paths and personal collections of courses
+                allSaved, allCompleted, allInProgress   // whether to include personal My Learning saved/completed/in progress courses
+            } = getItemsToDownloadFromList(items)
+            
+            // Output a text file with course list for each path
+            fs.mkdirSync(outputFolder, {recursive:true})
+            const pathStructures = await paths.reduce(async (l, path) => {
+                return [...await l, await getPathStructure(path)]
+            }, Promise.resolve([]))
+
+            pathStructures.forEach(path => {
+                fs.writeFileSync(`${outputFolder}/${path.title}.txt`,
+                    path.title + path.courses.reduce((str, course, i) => `${str}\n ${i+1}. ${course.title}`, ''))
+            })
+            
+            // Get all the nested courses to download from items
+            const allCourses = [
+                ...individualCourses,
+                //..._.flatten(paths.map(path => getCoursesFromPath(path)))
+                //...pathStructures.map(p => _.flatMap(p.courses, c => c.url)),
+                ..._.flatMap(pathStructures, p => p.courses.map(c => c.url)),
+                ...await collections.reduce(async (l, c) => [...await l, ...await getCoursesFromCollection(c)], Promise.resolve([])),
+                ...(allSaved ? await getAllSavedCourses() : []),
+                ...(allCompleted ? await getAllCompletedCourses() : []),
+                ...(allInProgress ? await getAllInProgressCourses() : [])
+            ]
+            const distinctCourses = _.uniq(allCourses)
+            console.info(`About to download ${distinctCourses.length} courses.`)
+
             // Download courses
-            for(const course of courses) {
-                console.info(`Let's download course ${course}`)
+            for(const course of distinctCourses) {
                 const structure = await getCourseStructure(course)
+                console.info(`\n[[${structure.title}]]`)
                 const courseTitle = structure.title
                 for(const chapterId in structure.chapters) {
                     const chapter = structure.chapters[chapterId]
@@ -169,22 +273,12 @@ const LinkedInLearningDownloader = () => {
                         const lesson = chapter.lessons[lessonId]
                         // Ignore lesson if already exists on disk
                         const lessonFullPath = `${chapterPath}/${lessonId+1}. ${lesson.title}.mp4`
-                        if(fs.existsSync(lessonFullPath) && fs.statSync(lessonFullPath).size > 500000) {
-                            console.info(`Skipped existing '${chapterId}/${lessonId+1}. ${lesson.title}'`)
+                        if(fs.existsSync(lessonFullPath) && fs.statSync(lessonFullPath).size > 200000) {
                             continue
                         }
                         await downloadLesson(lesson, lessonFullPath)
                     }
                 }
-                
-                // TODO Download exercise files and transcripts if asked
-                /*if(includeExerciseFiles) {
-                    await downloadExerciseFiles()
-                }
-                if(includeTranscripts) {
-                    await downloadTranscripts()
-                }*/
-                console.info(`Finished downloading course ${course}`)
             }
             await browser.close()
         }
@@ -197,7 +291,7 @@ const LinkedInLearningDownloader = () => {
     }
 
     return {
-        downloadCourses: downloadCourses
+        downloadCourses
     }
 
 }
@@ -209,10 +303,6 @@ module.exports = LinkedInLearningDownloader
 // - sometimes we have "TypeError: Cannot read property 'replace' of null"
 
 // TODO Features
-// - allow full length course url as well as short course name in params
-// - download all courses of a personal Collection
-// - download all courses of the personal section 'Saved courses'
-// - download a whole (or a list of) training path
 // - create a CLI (and download from a list of course names in csv)
 // - download transcripts
 // - download exercise files
