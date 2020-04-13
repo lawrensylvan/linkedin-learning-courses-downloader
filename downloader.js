@@ -103,10 +103,17 @@ const LinkedInLearningDownloader = () => {
     }
 
     async function getPathStructure(path) {
+        
         await page.goto(`https://www.linkedin.com/learning/${path}`)
         await timeout(2000)
 
-        const title = await page.$eval('.path-layout__header-main>h1', h1 => h1.textContent.trim())
+        const title = await page.$eval('.path-layout__header-main h1', h1 => h1.textContent.trim())
+        const startButton = await page.$('button[data-control-name="start_learning_path"]')
+        if(startButton) {
+            // The learning path was not started yet, we have to start it before having the list of a elements
+            await page.click('button[data-control-name="start_learning_path"]')
+            await timeout(2000)
+        }
 
         const courseURLs = await page.$$eval('a.entity-link__link[data-control-name="path_card_title"]',
             l => l.map(a => a.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
