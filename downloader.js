@@ -12,6 +12,24 @@ const LinkedInLearningDownloader = () => {
     const timeout = ms => new Promise(res => setTimeout(res, ms))
     const makeFileSystemSafe = str => str.replace(/ ?[/\\:|>] ?/g, ' - ').replace(/[/\\?%"*<]/g, '')
 
+    async function scrollToBottom(page) {
+        await page.evaluate(async () => {
+            await new Promise((resolve, reject) => {
+                var totalHeight = 0;
+                var distance = 100;
+                var timer = setInterval(() => {
+                    var scrollHeight = document.body.scrollHeight;
+                    window.scrollBy(0, distance)
+                    totalHeight += distance
+                    if(totalHeight >= scrollHeight) {
+                        clearInterval(timer)
+                        resolve()
+                    }
+                }, 100)
+            })
+        })
+    }
+
     async function openBrowserPage() {
         try {
             const width = 1600
@@ -65,6 +83,8 @@ const LinkedInLearningDownloader = () => {
     async function getAllSavedCourses() {
         await page.goto(`https://www.linkedin.com/learning/me/saved`)
         await timeout(2000)
+        // scroll to the bottom to load all courses
+        await scrollToBottom(page)
         return await page.$$eval('a.card-entity-link[data-control-name="card_title"]',
             a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
     }
@@ -72,6 +92,8 @@ const LinkedInLearningDownloader = () => {
     async function getCoursesFromCollection(collection) {
         await page.goto(`https://www.linkedin.com/learning/${collection}`)
         await timeout(2000)
+        // scroll to the bottom to load all courses
+        await scrollToBottom(page)
         return await page.$$eval('a.entity-link__link[data-control-name="collection_card"]',
             a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
     }
@@ -79,6 +101,8 @@ const LinkedInLearningDownloader = () => {
     async function getAllInProgressCourses() {
         await page.goto(`https://www.linkedin.com/learning/me/in-progress`)
         await timeout(2000)
+        // scroll to the bottom to load all courses
+        await scrollToBottom(page)
         // click on each collapsed learning paths to expand them
         const collapsedPaths = await page.$$('.lls-card-child-content__button>span')
         for(const collapsedPath of collapsedPaths) {
@@ -92,6 +116,8 @@ const LinkedInLearningDownloader = () => {
     async function getAllCompletedCourses() {
         await page.goto(`https://www.linkedin.com/learning/me/completed`)
         await timeout(2000)
+        // scroll to the bottom to load all courses
+        await scrollToBottom(page)
         // click on each collapsed learning paths to expand them
         const collapsedPaths = await page.$$('.lls-card-child-content__button>span')
         for(const collapsedPath of collapsedPaths) {
