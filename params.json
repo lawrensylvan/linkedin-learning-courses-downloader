@@ -1,0 +1,10 @@
+{
+    "user": "your@mail.com",
+    "password": "yrpsswrd",
+    "items": [
+        "https://www.linkedin.com/learning/paths/become-a-mern-stack-javascript-developer",
+        "https://www.linkedin.com/learning/node-js-security/introduction-to-owasp-and-other-sources",
+        "https://www.linkedin.com/learning/me/completed?trk=nav_neptune_learning"
+    ],
+    "outputFolder": "./courses"
+}
