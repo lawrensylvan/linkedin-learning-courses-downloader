@@ -103,7 +103,7 @@ const LinkedInLearningDownloader = () => {
     }
 
     async function getPathStructure(path) {
-        
+
         await page.goto(`https://www.linkedin.com/learning/${path}`)
         await timeout(2000)
 
@@ -177,15 +177,15 @@ const LinkedInLearningDownloader = () => {
         }
         catch(err) {
             console.error(`Unexpected error while fetching chapter list of course ${course} : ${err}`)
-            throw err
+            return null
         }
     }
 
     async function downloadLesson(lesson, output) {
         try {
-            // Get video uri (if we find no uri, we retry up to 3 times to reload the page)
+            // Get video uri (if we find no uri, we retry up to 5 times to reload the page)
             let uri = null, tryCount = 0
-            for(uri = null, tryCount = 0; uri === null && tryCount < 3; tryCount++) {
+            for(uri = null, tryCount = 0; uri === null && tryCount < 5; tryCount++) {
                 // Go to lesson page
                 await Promise.all([
                     page.goto(lesson.url),
@@ -196,15 +196,15 @@ const LinkedInLearningDownloader = () => {
                     let src = document.querySelector('.vjs-tech')
                     return (src ? src.src : null)
                 })
-                if(uri == null && tryCount < 3) {
+                if(uri == null && tryCount < 5) {
                     console.warn(`Trouble fetching video uri for '${lesson.title}' : retrying`)
                     await timeout(4000)
                 }
             }
             if(uri == null) {
-                console.warn(`<!> Could not fetch video uri for ${lesson.title} : skipped !`)
+                console.warn(`Could not fetch video uri for ${lesson.title} : skipped !`)
                 retryCount = 0
-                return
+                return false
             }
             // Download video
             const writer = fs.createWriteStream(output)
@@ -215,10 +215,11 @@ const LinkedInLearningDownloader = () => {
                 writer.on('error', reject)
             })
             console.info(` '${output.replace(/.*\/[^\/]*\/([^\/]*\/[^\/]*)/, '$1')}' downloaded.`)
+            return true
         }
         catch(err) {
             console.error(`Unexpected error while downloading lesson '${lesson.title}' : ${err}`)
-            throw err
+            return false
         }
     }
 
@@ -232,6 +233,7 @@ const LinkedInLearningDownloader = () => {
             console.info(`Logging in...`)
             await login(user, password)
             
+            console.info(`Getting structure of items to download...`)
             // Get structure of items to download
             const {
                 individualCourses,                      // individual courses
@@ -265,9 +267,25 @@ const LinkedInLearningDownloader = () => {
             console.info(`About to download ${distinctCourses.length} courses.`)
 
             // Download courses
+            let skipCount = 0
             for(const course of distinctCourses) {
-                const structure = await getCourseStructure(course)
-                console.info(`\n[[${structure.title}]]`)
+
+                // Fetching course structure
+                let structure = null, retryCount = 0
+                do {
+                    retryCount++
+                    structure = await getCourseStructure(course)
+                    if(structure === null && retryCount < 5) {
+                        console.warn(`Trouble getting course structure for '${course}' : retrying`)
+                        timeout(2000)
+                    }
+                } while(structure === null && retryCount < 5)
+                if(structure === null) {
+                    console.warn(`<!!!> Could not get course structure for '${course}' : skipped !`)
+                    skipCount++
+                    continue
+                }
+                console.info(`\n[ ${structure.title} ]`)
                 const courseTitle = structure.title
                 for(const chapterId in structure.chapters) {
                     const chapter = structure.chapters[chapterId]
@@ -283,11 +301,32 @@ const LinkedInLearningDownloader = () => {
                         if(fs.existsSync(lessonFullPath) && fs.statSync(lessonFullPath).size > 200000) {
                             continue
                         }
-                        await downloadLesson(lesson, lessonFullPath)
+                        // Try download lesson
+                        let ok = false
+                        retryCount = 0
+                        do {
+                            retryCount++
+                            ok = await downloadLesson(lesson, lessonFullPath)
+                            if(!ok && retryCount < 5) {
+                                console.warn(`Trouble downloading video for '${lesson.title}' : retrying`)
+                                timeout(2000)
+                            }
+                        } while(!ok && retryCount < 5)
+                        if(!ok) {
+                            console.warn(`<!!!> Could not download video for ${lesson.title} : skipped !`)
+                            skipCount++
+                            continue
+                        }
                     }
                 }
             }
             await browser.close()
+
+            if(skipCount === 0) {
+                console.info(`\n${distinctCourses.length} courses succesfully downloaded !`)
+            } else {
+                console.warn(`\n<!!!> Download is finished but ${skipCount} videos could not be downloaded !`)
+            }
         }
     
         catch(err) {
@@ -307,7 +346,6 @@ module.exports = LinkedInLearningDownloader
 
 // TODO Bugs
 // - sometimes video download is stuck forever, promise never resolve
-// - sometimes we have "TypeError: Cannot read property 'replace' of null"
 
 // TODO Features
 // - create a CLI (and download from a list of course names in csv)
