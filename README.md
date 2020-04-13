@@ -70,7 +70,7 @@ This is a beta version and although it works, some better error handling will be
 It has been tested with the latest LinkedIn Learning design change of early 2020, though.
 
 In a near future, you can expect the following features :
-[x] Specifying course list from a LinkedIn Collection or Path
-[ ] CLI version with multiple commands using a csv file instead of params.json
-[ ] Optional download of transcripts
-[ ] Optional download of exercise files
+- [x] Specifying course list from a LinkedIn Collection or Path
+- [ ] CLI version with multiple commands using a csv file instead of params.json
+- [ ] Optional download of transcripts
+- [ ] Optional download of exercise files
