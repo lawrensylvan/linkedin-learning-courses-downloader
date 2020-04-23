@@ -236,10 +236,18 @@ const LinkedInLearningDownloader = () => {
             const writer = fs.createWriteStream(output)
             const response = await axios({url: uri, method: 'GET', responseType: 'stream', timeout: 5*1000})
             response.data.pipe(writer)
-            await new Promise((resolve, reject) => {
-                writer.on('finish', resolve)
-                writer.on('error', reject)
-            })
+            try {
+                await Promise.race([
+                    new Promise((resolve, reject) => {
+                        writer.on('finish', resolve)
+                        writer.on('error', reject)
+                    }),
+                    timeout(3*60*1000).then(()=>{throw new Error('Download timeout')}) // retry downloading after 3 minutes
+                ])
+            } catch(err) {
+                console.info(`Timeout while downloading lesson '${lesson.title}'`)
+                return false
+            }
             console.info(` '${output.replace(/.*\/[^\/]*\/([^\/]*\/[^\/]*)/, '$1')}' downloaded.`)
             return true
         }
@@ -372,6 +380,10 @@ module.exports = LinkedInLearningDownloader
 
 // TODO Bugs
 // - sometimes video download is stuck forever, promise never resolve
+// - sometimes : Unexpected error while downloading lesson <> : Error: Navigation failed because browser has disconnected!
+// - sometimes : TimeoutError: Navigation timeout of 30000 ms exceeded
+// - sometimes : Error: Protocol error (Page.navigate): Session closed. Most likely the page has been closed.
+// - sometimes : ERR: INTERNET DISCONNECTED
 
 // TODO Features
 // - create a CLI (and download from a list of course names in csv)
