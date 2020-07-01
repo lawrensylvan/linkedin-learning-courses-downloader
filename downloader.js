@@ -176,10 +176,10 @@ const LinkedInLearningDownloader = () => {
             const HTMLStructure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
                 .map((chapter, chapterId) => ({
                     title: chapter.querySelector('.classroom-toc-chapter__toggle-title').innerHTML,
-                    lessons: [...chapter.querySelectorAll('.classroom-toc-item-layout__link')]
+                    lessons: [...chapter.querySelectorAll('.classroom-toc-item__link')]
                         .map(lesson => ({
                             url: lesson.href,
-                            title: lesson.querySelector('.classroom-toc-item-layout__title').childNodes[1].textContent
+                            title: lesson.querySelector('.classroom-toc-item__title').childNodes[1].textContent
                         }))
                 }))
             )
