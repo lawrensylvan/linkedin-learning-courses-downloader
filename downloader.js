@@ -85,7 +85,7 @@ const LinkedInLearningDownloader = () => {
         await timeout(2000)
         // scroll to the bottom to load all courses
         await scrollToBottom(page)
-        return await page.$$eval('a.card-entity-link[data-control-name="card_title"]',
+        return await page.$$eval('a.entity-link[data-control-name="card_title"]',
             a => a.map(e => e.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
     }
 
