@@ -178,17 +178,28 @@ const LinkedInLearningDownloader = () => {
                 await collapsedChapter.click()
             }
             // Store the chapter/lesson tree structure
+            const HTMLStructure = await page.evaluate(() => {
+                const extractLessons = (chapter) => (
+                    [...chapter.querySelectorAll('.classroom-toc-item__link')].map(lesson => ({
+                        url: lesson.href,
+                        title: Array.from(lesson.querySelector('.classroom-toc-item__title').childNodes).find(e => (!e.tagName && e.textContent && e.textContent.trim())).textContent.trim()
+                    }))
+                )
 
-            const HTMLStructure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
-                .map((chapter, chapterId) => ({
-                    title: chapter.querySelector('.classroom-toc-chapter__toggle-title').innerHTML,
-                    lessons: [...chapter.querySelectorAll('.classroom-toc-item__link')]
-                        .map(lesson => ({
-                            url: lesson.href,
-                            title: lesson.querySelector('.classroom-toc-item__title').childNodes[1].textContent
-                        }))
-                }))
-            )
+                const chapters = [...document.querySelectorAll('.classroom-toc-chapter')]
+                    .map((chapter) => ({
+                        title: chapter.querySelector('.classroom-toc-chapter__toggle-title').innerHTML,
+                        lessons: extractLessons(chapter)
+                    }))
+
+                const sections = [...document.querySelectorAll('.classroom-toc-section')]
+                    .map((section) => ({
+                        title: section.querySelector('.classroom-toc-section__toggle-title').innerHTML,
+                        lessons: extractLessons(section)
+                    }))
+
+                return [...chapters, ...sections]
+            })
 
             const chapters = HTMLStructure
                 .map((chapter, chapterId) => ({
