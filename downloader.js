@@ -30,15 +30,21 @@ const LinkedInLearningDownloader = () => {
         })
     }
 
-    async function openBrowserPage() {
+    async function openBrowserPage(wsEndpoint) {
         try {
             const width = 1600
             const height = 900
-            browser = await puppeteer.launch({
-                headless: true,
-                args: [`--window-size=${width},${height}`]
-            })
-        
+            if (wsEndpoint) {
+                browser = await puppeteer.connect({
+                    browserWSEndpoint: wsEndpoint
+                })
+            } else {
+                browser = await puppeteer.launch({
+                    headless: true,
+                    args: [`--window-size=${width},${height}`]
+                })
+            }
+
             page = await browser.newPage()
             await page.setViewport({width, height})
         } catch(err) {
@@ -165,7 +171,7 @@ const LinkedInLearningDownloader = () => {
             }
             // Get course full name
             const courseTitle = makeFileSystemSafe(decodeHTML(await page.$eval('.classroom-nav__details h1', el => el.textContent.trim())))
-            
+
             // Click on each collapsed chapter to expand them
             const collapsedChapters = await page.$$('.classroom-toc-chapter--collapsed')
             for(const collapsedChapter of collapsedChapters) {
@@ -190,7 +196,7 @@ const LinkedInLearningDownloader = () => {
                             .replace(/(Introduction)/, '0. $1')             // 'Introduction' and 'Conclusions' lessons have no number
                             .replace(/(Conclusion)/, chapterId + '. $1')    // so we add one (resp. 0 and last number + 1)
                     )),
-        
+
                     lessons: chapter.lessons
                         .map(lesson => ({
                             ...lesson,
@@ -259,14 +265,18 @@ const LinkedInLearningDownloader = () => {
 
     // Public exports
 
-    async function downloadCourses({user, password, items, includeExerciseFiles, includeTranscripts, outputFolder}) {
+    async function downloadCourses({user, password, items, includeExerciseFiles, includeTranscripts, wsEndpoint, outputFolder}) {
         try {
             // Log in
             console.info(`Launching browser...`)
-            await openBrowserPage()
-            console.info(`Logging in...`)
-            await login(user, password)
-            
+            await openBrowserPage(wsEndpoint)
+            if (user && password) {
+                console.info(`Logging in...`)
+                await login(user, password)
+            } else {
+                console.info(`Skipped login as credentials are not provided...`)
+            }
+
             console.info(`Getting structure of items to download...`)
             // Get structure of items to download
             const {
@@ -274,7 +284,7 @@ const LinkedInLearningDownloader = () => {
                 paths, collections,                     // specific public learning paths and personal collections of courses
                 allSaved, allCompleted, allInProgress   // whether to include personal My Learning saved/completed/in progress courses
             } = getItemsToDownloadFromList(items)
-            
+
             // Output a text file with course list for each path
             fs.mkdirSync(outputFolder, {recursive:true})
             const pathStructures = await paths.reduce(async (l, path) => {
@@ -285,7 +295,7 @@ const LinkedInLearningDownloader = () => {
                 fs.writeFileSync(`${outputFolder}/${path.title}.txt`,
                     path.title + path.courses.reduce((str, course, i) => `${str}\n ${i+1}. ${course.title}`, ''))
             })
-            
+
             // Get all the nested courses to download from items
             const allCourses = [
                 ...individualCourses,
@@ -323,11 +333,11 @@ const LinkedInLearningDownloader = () => {
                 const courseTitle = structure.title
                 for(const chapterId in structure.chapters) {
                     const chapter = structure.chapters[chapterId]
-                    
+
                     // Create chapter folder
                     const chapterPath = `${outputFolder}/${courseTitle}/${chapter.title}`
                     !fs.existsSync(chapterPath) && fs.mkdirSync(chapterPath, {recursive:true})
-                    
+
                     for(let lessonId = 0; lessonId < chapter.lessons.length; ++lessonId) {
                         const lesson = chapter.lessons[lessonId]
                         // Ignore lesson if already exists on disk
@@ -354,7 +364,9 @@ const LinkedInLearningDownloader = () => {
                     }
                 }
             }
-            await browser.close()
+            if (!wsEndpoint) {
+                await browser.close()
+            }
 
             if(skipCount === 0) {
                 console.info(`\n${distinctCourses.length} courses succesfully downloaded !`)
@@ -362,12 +374,14 @@ const LinkedInLearningDownloader = () => {
                 console.warn(`\n<!!!> Download is finished but ${skipCount} videos could not be downloaded !`)
             }
         }
-    
+
         catch(err) {
             console.error(`Unexpected error : ${err}`)
-            await browser.close() 
+            if (!wsEndpoint) {
+                await browser.close()
+            }
         }
-    
+
     }
 
     return {
