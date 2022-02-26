@@ -25,11 +25,15 @@ npm install
         "path/become-a-mern-stack-javascript-developer",
         "https://www.linkedin.com/learning/me/saved"
     ],
+    "wsEndpoint": "ws://127.0.0.1:9222/devtools/browser/30562c03-e523-4cf0-af10-5e015e36df8d",
     "outputFolder": "./courses"
 }
 ```
 
-- Fill in your credentials
+- Fill in your credentials if you want the robot to login for you (optional)
+- If you fill in `wsEndpoint` point with a devtools handle, the robot will open a page on that existing browser.
+  - You can use `./chrome.exe --remote-debugging-port=9222` to launch a debuggable chrome instance and grab dev tools link from console.
+  - If your browser instance is already loggen in LinkedIn, you may remove `user` and `password` fields to skip logging in.
 - Provide an array of items you wish to download. Each item is the URL (full or just last part) of either :
 
   - An **individual course** : `https://www.linkedin.com/learning/final-cut-pro-x-10-4-4-essential-training`
