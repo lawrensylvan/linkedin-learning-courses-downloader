@@ -141,12 +141,13 @@ const LinkedInLearningDownloader = () => {
             await timeout(2000)
         }
 
-        const courseURLs = await page.$$eval('a.entity-link__link[data-control-name="path_card_title"]',
+        const courseURLs = await page.$$eval('.lls-card-detail-card-body__headline a',
             l => l.map(a => a.href.replace(/.*\/learning\/([^\/?]*).*/, '$1')))
 
         const courseTitles = await page.$$eval('.lls-card-headline',
             l => l.map(span => span.textContent.trim()))
 
+            // console.log("courseURLs", courseURLs);
         return {
             title,
             courses : courseURLs.map((courseURL, i) => ({url: courseURL, title: courseTitles[i]}))
@@ -160,26 +161,28 @@ const LinkedInLearningDownloader = () => {
             await timeout(2000)
             // If content navbar is collapsed, expand it
             const contentSidebar = await page.$('.classroom-sidebar-toggle--open')
-            if(contentSidebar === null) {
+            if(contentSidebar !== null) {
                 await contentSidebar.click()
             }
             // Get course full name
             const courseTitle = makeFileSystemSafe(decodeHTML(await page.$eval('.classroom-nav__details h1', el => el.textContent.trim())))
             
+
             // Click on each collapsed chapter to expand them
-            const collapsedChapters = await page.$$('.classroom-toc-chapter--collapsed')
+            const collapsedChapters = await page.$$('.classroom-toc-section--collapsed')
+
             for(const collapsedChapter of collapsedChapters) {
                 await collapsedChapter.click()
             }
             // Store the chapter/lesson tree structure
 
-            const HTMLStructure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-chapter')]
+            const HTMLStructure = await page.evaluate(() => [...document.querySelectorAll('.classroom-toc-section')]
                 .map((chapter, chapterId) => ({
-                    title: chapter.querySelector('.classroom-toc-chapter__toggle-title').innerHTML,
+                    title: chapter.querySelector('.classroom-toc-section__toggle-title').innerHTML,
                     lessons: [...chapter.querySelectorAll('.classroom-toc-item__link')]
                         .map(lesson => ({
                             url: lesson.href,
-                            title: lesson.querySelector('.classroom-toc-item__title').childNodes[1].textContent
+                            title: lesson.querySelector('.classroom-toc-item__title').childNodes[2].textContent
                         }))
                 }))
             )
@@ -202,6 +205,7 @@ const LinkedInLearningDownloader = () => {
             return {title:courseTitle, chapters}
         }
         catch(err) {
+            console.log(err)
             console.error(`Unexpected error while fetching chapter list of course ${course} : ${err}`)
             return null
         }
@@ -302,6 +306,7 @@ const LinkedInLearningDownloader = () => {
 
             // Download courses
             let skipCount = 0
+            
             for(const course of distinctCourses) {
 
                 // Fetching course structure
@@ -320,6 +325,7 @@ const LinkedInLearningDownloader = () => {
                     continue
                 }
                 console.info(`\n[ ${structure.title} ]`)
+                
                 const courseTitle = structure.title
                 for(const chapterId in structure.chapters) {
                     const chapter = structure.chapters[chapterId]
