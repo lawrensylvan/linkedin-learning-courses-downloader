@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const linkedInLearningDownloader = require('./downloader.js')
 
 const fs = require('fs')

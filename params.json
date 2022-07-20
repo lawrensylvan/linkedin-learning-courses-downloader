@@ -2,9 +2,8 @@
     "user": "your@mail.com",
     "password": "yrpsswrd",
     "items": [
-        "https://www.linkedin.com/learning/paths/become-a-mern-stack-javascript-developer",
-        "https://www.linkedin.com/learning/node-js-security/introduction-to-owasp-and-other-sources",
-        "https://www.linkedin.com/learning/me/completed?trk=nav_neptune_learning"
+        "https://www.linkedin.com/learning/web-security-same-origin-policies"
     ],
+    "wsEndpoint": "ws://127.0.0.1:9222/devtools/browser/8d8ce5be-14da-45d2-8d19-420f8ef5091d",
     "outputFolder": "./courses"
 }
